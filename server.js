@@ -37,7 +37,6 @@ app.post('/webhook', async (req, res) => {
     const userPhone = message.from;
     const userName  = value?.contacts?.[0]?.profile?.name || "amigo";
 
-    // Handle both text and button replies
     let userText = '';
     if (message.type === 'text') {
       userText = message.text.body.trim();
@@ -80,8 +79,14 @@ async function handleMessage(phone, name, text) {
     ];
   }
 
+  // ── MÁS OPCIONES ─────────────────────────────────────────────
+  if (matchesOption(lower, ['más opciones', 'mas opciones', 'más', 'mas', 'otras opciones', 'mas_opciones'])) {
+    customerStates[phone] = 'main_menu';
+    return [extendedMenuButtons()];
+  }
+
   // ── MAIN MENU OPTIONS ────────────────────────────────────────
-  if (matchesOption(lower, ['ver menú', 'ver menu', '1', 'menu', 'menú'])) {
+  if (matchesOption(lower, ['ver menú', 'ver menu', '🍔 ver menú', '1', 'menu', 'menú'])) {
     customerStates[phone] = 'after_menu';
     return [
       textMsg('¡Aquí está nuestro menú! 🍔✨ Checa todas las opciones:'),
@@ -96,7 +101,7 @@ async function handleMessage(phone, name, text) {
     ];
   }
 
-  if (matchesOption(lower, ['hacer pedido', 'hacer un pedido', '2', 'pedido', 'ordenar', 'order'])) {
+  if (matchesOption(lower, ['hacer pedido', 'hacer un pedido', '🛒 hacer pedido', '2', 'pedido', 'ordenar', 'order'])) {
     customerStates[phone] = 'order_type';
     return [
       textMsg('¡Perfecto! 🍔 ¿Tu pedido es para delivery o para recoger en el local?'),
@@ -104,14 +109,14 @@ async function handleMessage(phone, name, text) {
     ];
   }
 
-  if (matchesOption(lower, ['información para eventos', 'informacion para eventos', 'eventos', '3', 'evento'])) {
+  if (matchesOption(lower, ['información para eventos', 'informacion para eventos', '🎉 info para eventos', 'eventos', '3', 'evento'])) {
     customerStates[phone] = 'collecting_event';
     return [
       textMsg('¡Nos encantaría ser parte de tu evento! 🎉🍔\n\nPor favor compártenos la siguiente información:\n\n1️⃣ Nombre y apellido\n2️⃣ Número de teléfono\n3️⃣ Número de personas\n4️⃣ Fecha del evento\n5️⃣ Hora del evento\n\nHaremos todo lo posible para cubrir tu evento, aunque hay restricciones de disponibilidad y ubicación.')
     ];
   }
 
-  if (matchesOption(lower, ['horarios', '4', 'horas', 'hora', 'horario', 'cuando abren', 'a que hora'])) {
+  if (matchesOption(lower, ['horarios', '⏰ horarios', '4', 'horas', 'hora', 'horario', 'cuando abren', 'a que hora'])) {
     customerStates[phone] = 'main_menu';
     return [
       textMsg('⏰ *Nuestros horarios:*\n\n📍 *Mistura Spazio Zona 15*\nLunes a Domingo: 12:00 PM – 9:00 PM\n\n📍 *Bocata Oakland Place Zona 10*\nLunes a Domingo: 12:00 PM – 9:00 PM'),
@@ -119,7 +124,7 @@ async function handleMessage(phone, name, text) {
     ];
   }
 
-  if (matchesOption(lower, ['hablar con asesor', 'asesor', '5', 'hablar', 'agente', 'persona'])) {
+  if (matchesOption(lower, ['hablar con asesor', '💬 hablar con asesor', 'asesor', '5', 'hablar', 'agente', 'persona'])) {
     customerStates[phone] = 'main_menu';
     return [
       textMsg('¡Con gusto! 😊 Puedes comunicarte directamente con nuestros locales:\n\n📍 *Mistura Spazio Zona 15*\n📞 +502 0000-0000\n\n📍 *Bocata Oakland Place Zona 10*\n📞 +502 0000-0000'),
@@ -129,7 +134,7 @@ async function handleMessage(phone, name, text) {
 
   // ── AFTER MENU — wants to order? ─────────────────────────────
   if (state === 'after_menu') {
-    if (matchesOption(lower, ['sí', 'si', 'yes', 'quiero', 'ordenar', 'hacer pedido'])) {
+    if (matchesOption(lower, ['sí', 'si', 'yes', 'quiero', 'ordenar', 'hacer pedido', '✅ sí, quiero ordenar'])) {
       customerStates[phone] = 'order_type';
       return [
         textMsg('¡Excelente elección! 🍔🔥 ¿Tu pedido es para delivery o para recoger en el local?'),
@@ -143,13 +148,13 @@ async function handleMessage(phone, name, text) {
 
   // ── ORDER TYPE ───────────────────────────────────────────────
   if (state === 'order_type') {
-    if (matchesOption(lower, ['delivery', 'domicilio', 'a domicilio', 'envío', 'envio'])) {
+    if (matchesOption(lower, ['delivery', '🛵 delivery', 'domicilio', 'a domicilio', 'envío', 'envio'])) {
       customerStates[phone] = 'main_menu';
       return [
         textMsg('🛵 Para pedidos a domicilio puedes ordenar a través de:\n\n🟢 *Uber Eats*\nhttps://www.ubereats.com/gt-en/store/rer/6WztAvp6TyyOcWtICpq3GQ\n\n🟡 *PedidosYa*\nhttps://www.pedidosya.com.gt/restaurantes/guatemala-city/rer-burgers-menu'),
         moreHelpButtons()
       ];
-    } else if (matchesOption(lower, ['pickup', 'recoger', 'para llevar', 'llevar', 'ir a recoger'])) {
+    } else if (matchesOption(lower, ['pickup', '🏃 para llevar', 'recoger', 'para llevar', 'llevar', 'ir a recoger'])) {
       customerStates[phone] = 'main_menu';
       return [
         textMsg('🏃 ¡Perfecto! Para pedidos para llevar puedes llamar directamente a nuestros locales:\n\n📍 *Mistura Spazio Zona 15*\n📞 +502 0000-0000\n\n📍 *Bocata Oakland Place Zona 10*\n📞 +502 0000-0000'),
@@ -161,18 +166,17 @@ async function handleMessage(phone, name, text) {
   // ── COLLECTING EVENT INFO ────────────────────────────────────
   if (state === 'collecting_event') {
     customerStates[phone] = 'main_menu';
-    // Send event info to RER admin via WhatsApp
     await sendMessage(EVENTS_PHONE, textMsg(
       `🎉 *Nueva solicitud de evento*\n\nDe: ${name} (${phone})\n\nInfo proporcionada:\n${text}`
     ));
     return [
-      textMsg('¡Gracias por tu interés! 🎉🍔 Alguien del equipo de RER Burgers se estará comunicando contigo muy pronto para confirmar los detalles.\n\n¿Hay algo más en lo que te pueda ayudar?'),
+      textMsg('¡Gracias por tu interés! 🎉🍔 Alguien del equipo de RER Burgers se estará comunicando contigo muy pronto para confirmar los detalles.'),
       moreHelpButtons()
     ];
   }
 
   // ── MORE HELP ────────────────────────────────────────────────
-  if (matchesOption(lower, ['sí, necesito ayuda', 'si, necesito ayuda', 'sí', 'si', 'más ayuda', 'mas ayuda', 'yes'])) {
+  if (matchesOption(lower, ['✅ sí, necesito ayuda', 'sí, necesito ayuda', 'si, necesito ayuda', 'sí', 'si', 'más ayuda', 'mas ayuda', 'yes'])) {
     customerStates[phone] = 'main_menu';
     return [
       textMsg('¡Claro! 😊 ¿En qué más te puedo ayudar?'),
@@ -180,7 +184,7 @@ async function handleMessage(phone, name, text) {
     ];
   }
 
-  if (matchesOption(lower, ['no, gracias', 'no gracias', 'no', 'estoy bien', 'listo'])) {
+  if (matchesOption(lower, ['👋 no, gracias', 'no, gracias', 'no gracias', 'no', 'estoy bien', 'listo'])) {
     customerStates[phone] = 'start';
     conversations[phone] = [];
     return [
@@ -188,7 +192,7 @@ async function handleMessage(phone, name, text) {
     ];
   }
 
-  // ── FALLBACK — use Claude for anything unexpected ─────────────
+  // ── FALLBACK — Claude AI ─────────────────────────────────────
   conversations[phone].push({ role: 'user', content: text });
   const aiReply = await askClaude(conversations[phone]);
   conversations[phone].push({ role: 'assistant', content: aiReply });
@@ -198,7 +202,7 @@ async function handleMessage(phone, name, text) {
   return [textMsg(aiReply), menuButtons()];
 }
 
-// ── MESSAGE BUILDERS ─────────────────────────────────────────
+// ── MESSAGE BUILDERS ──────────────────────────────────────────
 function textMsg(body) {
   return { type: 'text', text: { body, preview_url: false } };
 }
@@ -215,7 +219,7 @@ function menuButtons() {
       body: { text: '¿Qué deseas hacer? 👇' },
       action: {
         buttons: [
-          { type: 'reply', reply: { id: 'ver_menu',  title: '🍔 Ver menú' } },
+          { type: 'reply', reply: { id: 'ver_menu',     title: '🍔 Ver menú' } },
           { type: 'reply', reply: { id: 'hacer_pedido', title: '🛒 Hacer pedido' } },
           { type: 'reply', reply: { id: 'mas_opciones', title: '➕ Más opciones' } }
         ]
@@ -231,15 +235,15 @@ function extendedMenuButtons() {
       type: 'list',
       body: { text: 'Selecciona una opción 👇' },
       action: {
-        button: 'Ver opciones',
+        button: '📋 Ver opciones',
         sections: [{
           title: 'Menú principal',
           rows: [
-            { id: 'ver_menu',    title: '🍔 Ver menú' },
+            { id: 'ver_menu',     title: '🍔 Ver menú' },
             { id: 'hacer_pedido', title: '🛒 Hacer pedido' },
-            { id: 'eventos',     title: '🎉 Info para eventos' },
-            { id: 'horarios',    title: '⏰ Horarios' },
-            { id: 'asesor',      title: '💬 Hablar con asesor' }
+            { id: 'eventos',      title: '🎉 Info para eventos' },
+            { id: 'horarios',     title: '⏰ Horarios' },
+            { id: 'asesor',       title: '💬 Hablar con asesor' }
           ]
         }]
       }
@@ -295,7 +299,7 @@ function moreHelpButtons() {
   };
 }
 
-// ── SEND MESSAGE ─────────────────────────────────────────────
+// ── SEND MESSAGE ──────────────────────────────────────────────
 function sendMessage(to, payload) {
   return new Promise((resolve) => {
     const body = JSON.stringify({
@@ -333,7 +337,7 @@ function sendMessage(to, payload) {
   });
 }
 
-// ── ASK CLAUDE (fallback) ────────────────────────────────────
+// ── ASK CLAUDE (fallback) ─────────────────────────────────────
 function askClaude(conversationHistory) {
   return new Promise((resolve) => {
     const body = JSON.stringify({
@@ -361,9 +365,11 @@ function askClaude(conversationHistory) {
       res2.on('end', () => {
         try {
           const parsed = JSON.parse(data);
-          if (parsed.error) resolve('Disculpa, tuve un problema. Llámanos 📞 +502 0000-0000 🙏');
+          if (parsed.error) resolve('Disculpa, tuve un problema. Llámanos 📞 Spazio: +502 0000-0000 / Oakland: +502 0000-0000 🙏');
           else resolve(parsed.content[0].text);
-        } catch(e) { resolve('Disculpa, tuve un problema. Llámanos 📞 +502 0000-0000 🙏'); }
+        } catch(e) {
+          resolve('Disculpa, tuve un problema. Llámanos 📞 Spazio: +502 0000-0000 / Oakland: +502 0000-0000 🙏');
+        }
       });
     });
 
@@ -373,7 +379,7 @@ function askClaude(conversationHistory) {
   });
 }
 
-// ── HELPERS ──────────────────────────────────────────────────
+// ── HELPERS ───────────────────────────────────────────────────
 function isGreeting(text) {
   return ['hola', 'buenos días', 'buenos dias', 'buenas tardes', 'buenas noches',
           'buenas', 'hey', 'hi', 'hello', 'buen día', 'buen dia'].some(g => text.includes(g));
@@ -387,6 +393,6 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// ── START SERVER ─────────────────────────────────────────────
+// ── START SERVER ──────────────────────────────────────────────
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => console.log('🍔 RER WhatsApp Bot running on port ' + PORT));
