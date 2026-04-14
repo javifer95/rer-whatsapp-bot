@@ -7,19 +7,18 @@ const VERIFY_TOKEN    = "rer_burgers_secret_2024";
 const WA_TOKEN        = process.env.WA_TOKEN;
 const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID;
 const ANTHROPIC_KEY   = process.env.ANTHROPIC_KEY;
+const EVENTS_PHONE    = "50247703115";
 
 const conversations = {};
+const customerStates = {};
 
-app.get('/', (req, res) => {
-  res.send('RER Bot is alive!');
-});
+app.get('/', (req, res) => res.send('RER Bot is alive!'));
 
 app.get('/webhook', (req, res) => {
   const mode      = req.query['hub.mode'];
   const token     = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
   if (mode === 'subscribe' && token === VERIFY_TOKEN) {
-    console.log('✅ Webhook verified!');
     res.status(200).send(challenge);
   } else {
     res.sendStatus(403);
@@ -28,75 +27,319 @@ app.get('/webhook', (req, res) => {
 
 app.post('/webhook', async (req, res) => {
   try {
-    const entry   = req.body && req.body.entry && req.body.entry[0];
-    const change  = entry && entry.changes && entry.changes[0];
-    const message = change && change.value && change.value.messages && change.value.messages[0];
+    const entry   = req.body?.entry?.[0];
+    const change  = entry?.changes?.[0];
+    const value   = change?.value;
+    const message = value?.messages?.[0];
 
-    if (!message || message.type !== 'text') return res.sendStatus(200);
+    if (!message) return res.sendStatus(200);
 
     const userPhone = message.from;
-    const userText  = message.text.body;
+    const userName  = value?.contacts?.[0]?.profile?.name || "amigo";
 
-    console.log('📩 Message from ' + userPhone + ': ' + userText);
-
-    if (!conversations[userPhone]) conversations[userPhone] = [];
-    conversations[userPhone].push({ role: 'user', content: userText });
-
-    if (conversations[userPhone].length > 20) {
-      conversations[userPhone] = conversations[userPhone].slice(-20);
+    // Handle both text and button replies
+    let userText = '';
+    if (message.type === 'text') {
+      userText = message.text.body.trim();
+    } else if (message.type === 'interactive') {
+      userText = message.interactive?.button_reply?.title ||
+                 message.interactive?.list_reply?.title || '';
+    } else {
+      return res.sendStatus(200);
     }
 
-    const replyText = await askClaude(conversations[userPhone]);
-    conversations[userPhone].push({ role: 'assistant', content: replyText });
+    console.log(`📩 Message from ${userPhone} (${userName}): ${userText}`);
 
-    await sendWhatsAppMessage(userPhone, replyText);
-    console.log('📤 Replied: ' + replyText);
+    if (!conversations[userPhone]) conversations[userPhone] = [];
+    if (!customerStates[userPhone]) customerStates[userPhone] = 'start';
+
+    const response = await handleMessage(userPhone, userName, userText);
+
+    for (const msg of response) {
+      await sendMessage(userPhone, msg);
+      await sleep(500);
+    }
+
     res.sendStatus(200);
-
   } catch (error) {
     console.error('❌ Error:', error);
     res.sendStatus(500);
   }
 });
 
+async function handleMessage(phone, name, text) {
+  const state = customerStates[phone];
+  const lower = text.toLowerCase();
+
+  // ── WELCOME / START ──────────────────────────────────────────
+  if (state === 'start' || isGreeting(lower)) {
+    customerStates[phone] = 'main_menu';
+    return [
+      textMsg(`¡Hola ${name}! 👋😊 Bienvenido a *RER Burgers*, donde hacemos las mejores hamburguesas de la Ciudad de Guatemala. 🍔🔥\n\n¿En qué te puedo ayudar hoy?`),
+      menuButtons()
+    ];
+  }
+
+  // ── MAIN MENU OPTIONS ────────────────────────────────────────
+  if (matchesOption(lower, ['ver menú', 'ver menu', '1', 'menu', 'menú'])) {
+    customerStates[phone] = 'after_menu';
+    return [
+      textMsg('¡Aquí está nuestro menú! 🍔✨ Checa todas las opciones:'),
+      imageMsg('https://i.imgur.com/TVg1OdE.jpeg'),
+      imageMsg('https://i.imgur.com/8aES5Xs.jpeg'),
+      imageMsg('https://i.imgur.com/ZYs9HHI.jpeg'),
+      imageMsg('https://i.imgur.com/iGmTmyx.jpeg'),
+      imageMsg('https://i.imgur.com/equAh9P.jpeg'),
+      imageMsg('https://i.imgur.com/bAbsE4W.jpeg'),
+      textMsg('_*Nota:* Las Wings 🍗 están disponibles únicamente en nuestro local de Bocata Oakland Zona 10._'),
+      orderPromptButtons()
+    ];
+  }
+
+  if (matchesOption(lower, ['hacer pedido', 'hacer un pedido', '2', 'pedido', 'ordenar', 'order'])) {
+    customerStates[phone] = 'order_type';
+    return [
+      textMsg('¡Perfecto! 🍔 ¿Tu pedido es para delivery o para recoger en el local?'),
+      deliveryButtons()
+    ];
+  }
+
+  if (matchesOption(lower, ['información para eventos', 'informacion para eventos', 'eventos', '3', 'evento'])) {
+    customerStates[phone] = 'collecting_event';
+    return [
+      textMsg('¡Nos encantaría ser parte de tu evento! 🎉🍔\n\nPor favor compártenos la siguiente información:\n\n1️⃣ Nombre y apellido\n2️⃣ Número de teléfono\n3️⃣ Número de personas\n4️⃣ Fecha del evento\n5️⃣ Hora del evento\n\nHaremos todo lo posible para cubrir tu evento, aunque hay restricciones de disponibilidad y ubicación.')
+    ];
+  }
+
+  if (matchesOption(lower, ['horarios', '4', 'horas', 'hora', 'horario', 'cuando abren', 'a que hora'])) {
+    customerStates[phone] = 'main_menu';
+    return [
+      textMsg('⏰ *Nuestros horarios:*\n\n📍 *Mistura Spazio Zona 15*\nLunes a Domingo: 12:00 PM – 9:00 PM\n\n📍 *Bocata Oakland Place Zona 10*\nLunes a Domingo: 12:00 PM – 9:00 PM'),
+      moreHelpButtons()
+    ];
+  }
+
+  if (matchesOption(lower, ['hablar con asesor', 'asesor', '5', 'hablar', 'agente', 'persona'])) {
+    customerStates[phone] = 'main_menu';
+    return [
+      textMsg('¡Con gusto! 😊 Puedes comunicarte directamente con nuestros locales:\n\n📍 *Mistura Spazio Zona 15*\n📞 +502 0000-0000\n\n📍 *Bocata Oakland Place Zona 10*\n📞 +502 0000-0000'),
+      moreHelpButtons()
+    ];
+  }
+
+  // ── AFTER MENU — wants to order? ─────────────────────────────
+  if (state === 'after_menu') {
+    if (matchesOption(lower, ['sí', 'si', 'yes', 'quiero', 'ordenar', 'hacer pedido'])) {
+      customerStates[phone] = 'order_type';
+      return [
+        textMsg('¡Excelente elección! 🍔🔥 ¿Tu pedido es para delivery o para recoger en el local?'),
+        deliveryButtons()
+      ];
+    } else {
+      customerStates[phone] = 'main_menu';
+      return [moreHelpButtons()];
+    }
+  }
+
+  // ── ORDER TYPE ───────────────────────────────────────────────
+  if (state === 'order_type') {
+    if (matchesOption(lower, ['delivery', 'domicilio', 'a domicilio', 'envío', 'envio'])) {
+      customerStates[phone] = 'main_menu';
+      return [
+        textMsg('🛵 Para pedidos a domicilio puedes ordenar a través de:\n\n🟢 *Uber Eats*\nhttps://www.ubereats.com/gt-en/store/rer/6WztAvp6TyyOcWtICpq3GQ\n\n🟡 *PedidosYa*\nhttps://www.pedidosya.com.gt/restaurantes/guatemala-city/rer-burgers-menu'),
+        moreHelpButtons()
+      ];
+    } else if (matchesOption(lower, ['pickup', 'recoger', 'para llevar', 'llevar', 'ir a recoger'])) {
+      customerStates[phone] = 'main_menu';
+      return [
+        textMsg('🏃 ¡Perfecto! Para pedidos para llevar puedes llamar directamente a nuestros locales:\n\n📍 *Mistura Spazio Zona 15*\n📞 +502 0000-0000\n\n📍 *Bocata Oakland Place Zona 10*\n📞 +502 0000-0000'),
+        moreHelpButtons()
+      ];
+    }
+  }
+
+  // ── COLLECTING EVENT INFO ────────────────────────────────────
+  if (state === 'collecting_event') {
+    customerStates[phone] = 'main_menu';
+    // Send event info to RER admin via WhatsApp
+    await sendMessage(EVENTS_PHONE, textMsg(
+      `🎉 *Nueva solicitud de evento*\n\nDe: ${name} (${phone})\n\nInfo proporcionada:\n${text}`
+    ));
+    return [
+      textMsg('¡Gracias por tu interés! 🎉🍔 Alguien del equipo de RER Burgers se estará comunicando contigo muy pronto para confirmar los detalles.\n\n¿Hay algo más en lo que te pueda ayudar?'),
+      moreHelpButtons()
+    ];
+  }
+
+  // ── MORE HELP ────────────────────────────────────────────────
+  if (matchesOption(lower, ['sí, necesito ayuda', 'si, necesito ayuda', 'sí', 'si', 'más ayuda', 'mas ayuda', 'yes'])) {
+    customerStates[phone] = 'main_menu';
+    return [
+      textMsg('¡Claro! 😊 ¿En qué más te puedo ayudar?'),
+      menuButtons()
+    ];
+  }
+
+  if (matchesOption(lower, ['no, gracias', 'no gracias', 'no', 'estoy bien', 'listo'])) {
+    customerStates[phone] = 'start';
+    conversations[phone] = [];
+    return [
+      textMsg('¡Perfecto! 😊 Gracias por contactar a *RER Burgers* 🍔 ¡Que tengas un excelente día! 👋')
+    ];
+  }
+
+  // ── FALLBACK — use Claude for anything unexpected ─────────────
+  conversations[phone].push({ role: 'user', content: text });
+  const aiReply = await askClaude(conversations[phone]);
+  conversations[phone].push({ role: 'assistant', content: aiReply });
+  if (conversations[phone].length > 20) {
+    conversations[phone] = conversations[phone].slice(-20);
+  }
+  return [textMsg(aiReply), menuButtons()];
+}
+
+// ── MESSAGE BUILDERS ─────────────────────────────────────────
+function textMsg(body) {
+  return { type: 'text', text: { body, preview_url: false } };
+}
+
+function imageMsg(url) {
+  return { type: 'image', image: { link: url } };
+}
+
+function menuButtons() {
+  return {
+    type: 'interactive',
+    interactive: {
+      type: 'button',
+      body: { text: '¿Qué deseas hacer? 👇' },
+      action: {
+        buttons: [
+          { type: 'reply', reply: { id: 'ver_menu',  title: '🍔 Ver menú' } },
+          { type: 'reply', reply: { id: 'hacer_pedido', title: '🛒 Hacer pedido' } },
+          { type: 'reply', reply: { id: 'mas_opciones', title: '➕ Más opciones' } }
+        ]
+      }
+    }
+  };
+}
+
+function extendedMenuButtons() {
+  return {
+    type: 'interactive',
+    interactive: {
+      type: 'list',
+      body: { text: 'Selecciona una opción 👇' },
+      action: {
+        button: 'Ver opciones',
+        sections: [{
+          title: 'Menú principal',
+          rows: [
+            { id: 'ver_menu',    title: '🍔 Ver menú' },
+            { id: 'hacer_pedido', title: '🛒 Hacer pedido' },
+            { id: 'eventos',     title: '🎉 Info para eventos' },
+            { id: 'horarios',    title: '⏰ Horarios' },
+            { id: 'asesor',      title: '💬 Hablar con asesor' }
+          ]
+        }]
+      }
+    }
+  };
+}
+
+function deliveryButtons() {
+  return {
+    type: 'interactive',
+    interactive: {
+      type: 'button',
+      body: { text: '¿Cómo quieres tu pedido? 🍔' },
+      action: {
+        buttons: [
+          { type: 'reply', reply: { id: 'delivery', title: '🛵 Delivery' } },
+          { type: 'reply', reply: { id: 'pickup',   title: '🏃 Para llevar' } }
+        ]
+      }
+    }
+  };
+}
+
+function orderPromptButtons() {
+  return {
+    type: 'interactive',
+    interactive: {
+      type: 'button',
+      body: { text: '¿Deseas hacer un pedido? 🍔' },
+      action: {
+        buttons: [
+          { type: 'reply', reply: { id: 'si_pedido', title: '✅ Sí, quiero ordenar' } },
+          { type: 'reply', reply: { id: 'no_pedido', title: '❌ No por ahora' } }
+        ]
+      }
+    }
+  };
+}
+
+function moreHelpButtons() {
+  return {
+    type: 'interactive',
+    interactive: {
+      type: 'button',
+      body: { text: '¿Necesitas algo más? 😊' },
+      action: {
+        buttons: [
+          { type: 'reply', reply: { id: 'si_ayuda', title: '✅ Sí, necesito ayuda' } },
+          { type: 'reply', reply: { id: 'no_ayuda', title: '👋 No, gracias' } }
+        ]
+      }
+    }
+  };
+}
+
+// ── SEND MESSAGE ─────────────────────────────────────────────
+function sendMessage(to, payload) {
+  return new Promise((resolve) => {
+    const body = JSON.stringify({
+      messaging_product: 'whatsapp',
+      to,
+      ...payload
+    });
+
+    const options = {
+      hostname: 'graph.facebook.com',
+      path: `/v18.0/${PHONE_NUMBER_ID}/messages`,
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${WA_TOKEN}`,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(body)
+      }
+    };
+
+    const req = https.request(options, (res2) => {
+      let data = '';
+      res2.on('data', chunk => data += chunk);
+      res2.on('end', () => {
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.error) console.error('WhatsApp error:', parsed.error);
+        } catch(e) {}
+        resolve();
+      });
+    });
+
+    req.on('error', (e) => { console.error('Request error:', e); resolve(); });
+    req.write(body);
+    req.end();
+  });
+}
+
+// ── ASK CLAUDE (fallback) ────────────────────────────────────
 function askClaude(conversationHistory) {
   return new Promise((resolve) => {
     const body = JSON.stringify({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 350,
-      system: `Eres el asistente virtual de RER Burgers 🍔, un restaurante de hamburguesas artesanales ubicado en Spazio, Guatemala City.
-
-Tu personalidad: amigable, entusiasta con la comida, breve y claro. Usas algún emoji ocasionalmente.
-
-HORARIOS:
-- Lunes a Miércoles: 11:00 AM – 8:00 PM
-- Jueves: 12:00 PM – 9:00 PM
-- Viernes: 11:00 AM – 8:00 PM
-- Sábado: 12:00 PM – 9:00 PM
-- Domingo: 11:30 AM – 6:00 PM
-
-MENÚ:
-- The Melt Q116
-- Shroom Burger Q116
-- Walker Q114
-- The All in Burger Q110
-- Steak Burger Q100
-- La Francesa Q115
-- The Tearmaker Q114
-- Egg Classic Burger Q114
-- Crispy Chicken Q116
-- Turkey Melt Q85
-- Mini Slider Q70
-- RER Rockstars Sampler Q135
-
-PEDIDOS: También por Uber Eats. Para pedidos aquí, toma el pedido y diles que un agente los contactará pronto.
-CONTACTO: +502 3569-5505 — Spazio, Guatemala City
-
-REGLAS:
-1. Responde SIEMPRE en español.
-2. Si no sabes algo di: llámanos al +502 3569-5505
-3. Nunca inventes precios.
-4. Máximo 3-4 líneas por respuesta.`,
+      max_tokens: 300,
+      system: `Eres el asistente virtual de RER Burgers 🍔, un restaurante de hamburguesas artesanales con dos locales en Guatemala City: Mistura Spazio Zona 15 y Bocata Oakland Place Zona 10. Horario: Lunes a Domingo 12PM-9PM. Tono: casual, divertido, emocionado. Responde SIEMPRE en español. Máximo 3 líneas. Si no sabes algo di: "Para más info llámanos 📞 Spazio: +502 0000-0000 / Oakland: +502 0000-0000".`,
       messages: conversationHistory
     });
 
@@ -118,67 +361,32 @@ REGLAS:
       res2.on('end', () => {
         try {
           const parsed = JSON.parse(data);
-          if (parsed.error) {
-            console.error('Claude error:', parsed.error);
-            resolve('Disculpa, tuve un problema. Llámanos al +502 3569-5505 🙏');
-          } else {
-            resolve(parsed.content[0].text);
-          }
-        } catch(e) {
-          resolve('Disculpa, tuve un problema. Llámanos al +502 3569-5505 🙏');
-        }
+          if (parsed.error) resolve('Disculpa, tuve un problema. Llámanos 📞 +502 0000-0000 🙏');
+          else resolve(parsed.content[0].text);
+        } catch(e) { resolve('Disculpa, tuve un problema. Llámanos 📞 +502 0000-0000 🙏'); }
       });
     });
 
-    req.on('error', (e) => {
-      console.error('Request error:', e);
-      resolve('Disculpa, tuve un problema. Llámanos al +502 3569-5505 🙏');
-    });
-
+    req.on('error', () => resolve('Disculpa, tuve un problema. Llámanos 📞 +502 0000-0000 🙏'));
     req.write(body);
     req.end();
   });
 }
 
-function sendWhatsAppMessage(to, text) {
-  return new Promise((resolve) => {
-    const body = JSON.stringify({
-      messaging_product: 'whatsapp',
-      to: to,
-      type: 'text',
-      text: { body: text }
-    });
-
-    const options = {
-      hostname: 'graph.facebook.com',
-      path: '/v18.0/' + PHONE_NUMBER_ID + '/messages',
-      method: 'POST',
-      headers: {
-        'Authorization': 'Bearer ' + WA_TOKEN,
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(body)
-      }
-    };
-
-    const req = https.request(options, (res2) => {
-      let data = '';
-      res2.on('data', chunk => data += chunk);
-      res2.on('end', () => {
-        const parsed = JSON.parse(data);
-        if (parsed.error) console.error('WhatsApp error:', parsed.error);
-        resolve();
-      });
-    });
-
-    req.on('error', (e) => {
-      console.error('WhatsApp request error:', e);
-      resolve();
-    });
-
-    req.write(body);
-    req.end();
-  });
+// ── HELPERS ──────────────────────────────────────────────────
+function isGreeting(text) {
+  return ['hola', 'buenos días', 'buenos dias', 'buenas tardes', 'buenas noches',
+          'buenas', 'hey', 'hi', 'hello', 'buen día', 'buen dia'].some(g => text.includes(g));
 }
 
+function matchesOption(text, options) {
+  return options.some(o => text.includes(o.toLowerCase()));
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// ── START SERVER ─────────────────────────────────────────────
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => console.log('🍔 RER WhatsApp Bot running on port ' + PORT));
