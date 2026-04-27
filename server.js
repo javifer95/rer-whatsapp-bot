@@ -70,7 +70,71 @@ async function handleMessage(phone, name, text) {
   const state = customerStates[phone];
   const lower = text.toLowerCase();
 
-  // ── WELCOME / START ──────────────────────────────────────────
+  // ── FIX 1: ESTADOS ESPECIALES PRIMERO — antes de cualquier otra cosa ──
+  // Esto evita que el bot malinterprete respuestas en medio de un flujo
+
+  // COLLECTING EVENT INFO
+  if (state === 'collecting_event') {
+    customerStates[phone] = 'main_menu';
+    await sendMessage(EVENTS_PHONE, textMsg(
+      `🎉 *Nueva solicitud de evento*\n\nDe: ${name}\nTeléfono: ${phone}\n\nInformación del evento:\n${text}`
+    ));
+    return [
+      textMsg('¡Muchas gracias por tu interés! 🎉🍔 Alguien del equipo de *RER Burgers* se estará comunicando contigo muy pronto para confirmar todos los detalles.'),
+      moreHelpButtons()
+    ];
+  }
+
+  // AFTER MENU — ¿quiere ordenar?
+  if (state === 'after_menu') {
+    if (matchesOption(lower, ['sí', 'si', 'yes', 'quiero', 'ordenar', 'hacer pedido', '✅ sí, quiero ordenar'])) {
+      customerStates[phone] = 'order_type';
+      return [
+        textMsg('¡Excelente elección! 🍔🔥 ¿Tu pedido es para delivery o para recoger en el local?'),
+        deliveryButtons()
+      ];
+    } else {
+      customerStates[phone] = 'main_menu';
+      return [moreHelpButtons()];
+    }
+  }
+
+  // ORDER TYPE
+  if (state === 'order_type') {
+    if (matchesOption(lower, ['delivery', '🛵 delivery', 'domicilio', 'a domicilio', 'envío', 'envio'])) {
+      customerStates[phone] = 'main_menu';
+      return [
+        textMsg('🛵 Para pedidos a domicilio puedes ordenar a través de:\n\n🟢 *Uber Eats*\nhttps://www.ubereats.com/gt-en/store/rer/6WztAvp6TyyOcWtICpq3GQ\n\n🟡 *PedidosYa*\nhttps://www.pedidosya.com.gt/restaurantes/guatemala-city/rer-burgers-menu'),
+        moreHelpButtons()
+      ];
+    } else if (matchesOption(lower, ['pickup', '🏃 para llevar', 'recoger', 'para llevar', 'llevar', 'ir a recoger'])) {
+      customerStates[phone] = 'main_menu';
+      return [
+        textMsg('🏃 ¡Perfecto! Para pedidos para llevar puedes llamar directamente a nuestros locales:\n\n📍 *Mistura Spazio Zona 15*\n📞 +502 0000-0000\n\n📍 *Bocata Oakland Place Zona 10*\n📞 +502 0000-0000'),
+        moreHelpButtons()
+      ];
+    }
+  }
+
+  // ── FIX 2: CLOSING MESSAGE — antes del fallback ───────────────
+  if (matchesOption(lower, ['👋 no, gracias', 'no, gracias', 'no gracias', 'no_ayuda', '❌ no por ahora', 'no por ahora', 'no', 'estoy bien', 'listo'])) {
+    customerStates[phone] = 'start';
+    conversations[phone] = [];
+    return [
+      textMsg('¡Perfecto! 😊 Gracias por contactar a *RER Burgers* 🍔 ¡Que tengas un excelente día! 👋\n\n📸 ¡Síguenos en Instagram para ver nuestras últimas novedades, promociones y mucho más!\n👉 https://www.instagram.com/rerburgers/')
+    ];
+  }
+
+  // MORE HELP — sí necesita ayuda
+  if (matchesOption(lower, ['✅ sí, necesito ayuda', 'sí, necesito ayuda', 'si, necesito ayuda', 'si_ayuda', 'más ayuda', 'mas ayuda'])) {
+    customerStates[phone] = 'main_menu';
+    return [
+      textMsg('¡Claro! 😊 ¿En qué más te puedo ayudar?'),
+      menuButtons()
+    ];
+  }
+
+  // ── WELCOME / START ───────────────────────────────────────────
   if (state === 'start' || isGreeting(lower)) {
     customerStates[phone] = 'main_menu';
     return [
@@ -79,14 +143,14 @@ async function handleMessage(phone, name, text) {
     ];
   }
 
-  // ── MÁS OPCIONES ─────────────────────────────────────────────
-  if (matchesOption(lower, ['más opciones', 'mas opciones', 'más', 'mas', 'otras opciones', 'mas_opciones'])) {
+  // ── MÁS OPCIONES ──────────────────────────────────────────────
+  if (matchesOption(lower, ['más opciones', 'mas opciones', 'mas_opciones', 'otras opciones'])) {
     customerStates[phone] = 'main_menu';
     return [extendedMenuButtons()];
   }
 
-  // ── VER MENÚ — envía los 3 PDFs ──────────────────────────────
-  if (matchesOption(lower, ['ver menú', 'ver menu', '🍔 ver menú', '1', 'menu', 'menú'])) {
+  // ── VER MENÚ ──────────────────────────────────────────────────
+  if (matchesOption(lower, ['ver menú', 'ver menu', '🍔 ver menú', 'ver_menu', 'menu', 'menú'])) {
     customerStates[phone] = 'after_menu';
     return [
       textMsg('¡Aquí están nuestros menús! 🍔✨ Te enviamos todo lo que tenemos:'),
@@ -107,8 +171,8 @@ async function handleMessage(phone, name, text) {
     ];
   }
 
-  // ── HACER PEDIDO ─────────────────────────────────────────────
-  if (matchesOption(lower, ['hacer pedido', 'hacer un pedido', '🛒 hacer pedido', '2', 'pedido', 'ordenar', 'order'])) {
+  // ── HACER PEDIDO ──────────────────────────────────────────────
+  if (matchesOption(lower, ['hacer pedido', 'hacer un pedido', '🛒 hacer pedido', 'hacer_pedido', 'pedido', 'ordenar', 'order'])) {
     customerStates[phone] = 'order_type';
     return [
       textMsg('¡Perfecto! 🍔 ¿Tu pedido es para delivery o para recoger en el local?'),
@@ -117,7 +181,7 @@ async function handleMessage(phone, name, text) {
   }
 
   // ── INFO PARA EVENTOS ─────────────────────────────────────────
-  if (matchesOption(lower, ['información para eventos', 'informacion para eventos', '🎉 info para eventos', 'eventos', '3', 'evento'])) {
+  if (matchesOption(lower, ['información para eventos', 'informacion para eventos', '🎉 info para eventos', 'eventos', 'evento'])) {
     customerStates[phone] = 'collecting_event';
     return [
       textMsg('¡Nos encantaría ser parte de tu evento! 🎉🍔\n\nPor favor compártenos la siguiente información:\n\n1️⃣ Nombre y apellido\n2️⃣ Número de teléfono\n3️⃣ Número de personas\n4️⃣ Fecha del evento\n5️⃣ Hora del evento\n\nHaremos todo lo posible para cubrir tu evento, aunque hay restricciones de disponibilidad y ubicación.')
@@ -125,7 +189,7 @@ async function handleMessage(phone, name, text) {
   }
 
   // ── HORARIOS ──────────────────────────────────────────────────
-  if (matchesOption(lower, ['horarios', '⏰ horarios', '4', 'horas', 'hora', 'horario', 'cuando abren', 'a que hora'])) {
+  if (matchesOption(lower, ['horarios', '⏰ horarios', 'horas', 'hora', 'horario', 'cuando abren', 'a que hora'])) {
     customerStates[phone] = 'main_menu';
     return [
       textMsg('⏰ *Nuestros horarios:*\n\n📍 *Mistura Spazio Zona 15*\nLunes a Domingo: 12:00 PM – 9:00 PM\n\n📍 *Bocata Oakland Place Zona 10*\nLunes a Domingo: 12:00 PM – 9:00 PM'),
@@ -134,72 +198,11 @@ async function handleMessage(phone, name, text) {
   }
 
   // ── HABLAR CON ASESOR ─────────────────────────────────────────
-  if (matchesOption(lower, ['hablar con asesor', '💬 hablar con asesor', 'asesor', '5', 'hablar', 'agente', 'persona'])) {
+  if (matchesOption(lower, ['hablar con asesor', '💬 hablar con asesor', 'asesor', 'hablar', 'agente', 'persona'])) {
     customerStates[phone] = 'main_menu';
     return [
       textMsg('¡Con gusto! 😊 Puedes comunicarte directamente con nuestros locales:\n\n📍 *Mistura Spazio Zona 15*\n📞 +502 0000-0000\n\n📍 *Bocata Oakland Place Zona 10*\n📞 +502 0000-0000'),
       moreHelpButtons()
-    ];
-  }
-
-  // ── AFTER MENU — ¿quiere ordenar? ────────────────────────────
-  if (state === 'after_menu') {
-    if (matchesOption(lower, ['sí', 'si', 'yes', 'quiero', 'ordenar', 'hacer pedido', '✅ sí, quiero ordenar'])) {
-      customerStates[phone] = 'order_type';
-      return [
-        textMsg('¡Excelente elección! 🍔🔥 ¿Tu pedido es para delivery o para recoger en el local?'),
-        deliveryButtons()
-      ];
-    } else {
-      customerStates[phone] = 'main_menu';
-      return [moreHelpButtons()];
-    }
-  }
-
-  // ── ORDER TYPE ────────────────────────────────────────────────
-  if (state === 'order_type') {
-    if (matchesOption(lower, ['delivery', '🛵 delivery', 'domicilio', 'a domicilio', 'envío', 'envio'])) {
-      customerStates[phone] = 'main_menu';
-      return [
-        textMsg('🛵 Para pedidos a domicilio puedes ordenar a través de:\n\n🟢 *Uber Eats*\nhttps://www.ubereats.com/gt-en/store/rer/6WztAvp6TyyOcWtICpq3GQ\n\n🟡 *PedidosYa*\nhttps://www.pedidosya.com.gt/restaurantes/guatemala-city/rer-burgers-menu'),
-        moreHelpButtons()
-      ];
-    } else if (matchesOption(lower, ['pickup', '🏃 para llevar', 'recoger', 'para llevar', 'llevar', 'ir a recoger'])) {
-      customerStates[phone] = 'main_menu';
-      return [
-        textMsg('🏃 ¡Perfecto! Para pedidos para llevar puedes llamar directamente a nuestros locales:\n\n📍 *Mistura Spazio Zona 15*\n📞 +502 0000-0000\n\n📍 *Bocata Oakland Place Zona 10*\n📞 +502 0000-0000'),
-        moreHelpButtons()
-      ];
-    }
-  }
-
-  // ── COLLECTING EVENT INFO ─────────────────────────────────────
-  if (state === 'collecting_event') {
-    customerStates[phone] = 'main_menu';
-    // Enviar info del evento al equipo de RER vía WhatsApp
-    await sendMessage(EVENTS_PHONE, textMsg(
-      `🎉 *Nueva solicitud de evento*\n\nDe: ${name}\nTeléfono: ${phone}\n\nInformación del evento:\n${text}`
-    ));
-    return [
-      textMsg('¡Muchas gracias por tu interés! 🎉🍔 Alguien del equipo de *RER Burgers* se estará comunicando contigo muy pronto para confirmar todos los detalles.'),
-      moreHelpButtons()
-    ];
-  }
-
-  // ── MORE HELP ─────────────────────────────────────────────────
-  if (matchesOption(lower, ['✅ sí, necesito ayuda', 'sí, necesito ayuda', 'si, necesito ayuda', 'sí', 'si', 'más ayuda', 'mas ayuda', 'yes'])) {
-    customerStates[phone] = 'main_menu';
-    return [
-      textMsg('¡Claro! 😊 ¿En qué más te puedo ayudar?'),
-      menuButtons()
-    ];
-  }
-
-  if (matchesOption(lower, ['👋 no, gracias', 'no, gracias', 'no gracias', 'no', 'estoy bien', 'listo'])) {
-    customerStates[phone] = 'start';
-    conversations[phone] = [];
-    return [
-      textMsg('¡Perfecto! 😊 Gracias por contactar a *RER Burgers* 🍔 ¡Que tengas un excelente día! 👋')
     ];
   }
 
@@ -221,10 +224,7 @@ function textMsg(body) {
 function pdfMsg(url, filename) {
   return {
     type: 'document',
-    document: {
-      link: url,
-      filename: filename
-    }
+    document: { link: url, filename: filename }
   };
 }
 
