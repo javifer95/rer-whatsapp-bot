@@ -56,7 +56,7 @@ app.post('/webhook', async (req, res) => {
 
     for (const msg of response) {
       await sendMessage(userPhone, msg);
-      await sleep(500);
+      await sleep(800);
     }
 
     res.sendStatus(200);
@@ -85,22 +85,29 @@ async function handleMessage(phone, name, text) {
     return [extendedMenuButtons()];
   }
 
-  // ── MAIN MENU OPTIONS ────────────────────────────────────────
+  // ── VER MENÚ — envía los 3 PDFs ──────────────────────────────
   if (matchesOption(lower, ['ver menú', 'ver menu', '🍔 ver menú', '1', 'menu', 'menú'])) {
     customerStates[phone] = 'after_menu';
     return [
-      textMsg('¡Aquí está nuestro menú! 🍔✨ Checa todas las opciones:'),
-      imageMsg('https://i.imgur.com/TVg1OdE.jpeg'),
-      imageMsg('https://i.imgur.com/8aES5Xs.jpeg'),
-      imageMsg('https://i.imgur.com/ZYs9HHI.jpeg'),
-      imageMsg('https://i.imgur.com/iGmTmyx.jpeg'),
-      imageMsg('https://i.imgur.com/equAh9P.jpeg'),
-      imageMsg('https://i.imgur.com/bAbsE4W.jpeg'),
-      textMsg('_*Nota:* Las Wings 🍗 están disponibles únicamente en nuestro local de Bocata Oakland Zona 10._'),
+      textMsg('¡Aquí están nuestros menús! 🍔✨ Te enviamos todo lo que tenemos:'),
+      pdfMsg(
+        'https://drive.google.com/uc?export=download&id=1ltggOCYMuPOcr6WuuqA00xIfCKjazYVW',
+        '🍔 Menú Bocata Oakland Zona 10'
+      ),
+      pdfMsg(
+        'https://drive.google.com/uc?export=download&id=1fiaH39C_6S8PWrjiry4UhhkRlwqyFzvF',
+        '🍔 Menú Mistura Spazio Zona 15'
+      ),
+      pdfMsg(
+        'https://drive.google.com/uc?export=download&id=15iy4jiEdQ-Rvm_0a-P8bfVG3UMjEVIdO',
+        '🔥 Menú Smash Burgers'
+      ),
+      textMsg('📌 *Notas importantes:*\n\n🍗 Las Wings están disponibles *únicamente* en nuestro local de Bocata Oakland Zona 10.\n\n✨ También te enviamos el menú de nuestras nuevas y deliciosas *SMASH Burgers*, ¡disponibles en todas las ubicaciones!'),
       orderPromptButtons()
     ];
   }
 
+  // ── HACER PEDIDO ─────────────────────────────────────────────
   if (matchesOption(lower, ['hacer pedido', 'hacer un pedido', '🛒 hacer pedido', '2', 'pedido', 'ordenar', 'order'])) {
     customerStates[phone] = 'order_type';
     return [
@@ -109,6 +116,7 @@ async function handleMessage(phone, name, text) {
     ];
   }
 
+  // ── INFO PARA EVENTOS ─────────────────────────────────────────
   if (matchesOption(lower, ['información para eventos', 'informacion para eventos', '🎉 info para eventos', 'eventos', '3', 'evento'])) {
     customerStates[phone] = 'collecting_event';
     return [
@@ -116,6 +124,7 @@ async function handleMessage(phone, name, text) {
     ];
   }
 
+  // ── HORARIOS ──────────────────────────────────────────────────
   if (matchesOption(lower, ['horarios', '⏰ horarios', '4', 'horas', 'hora', 'horario', 'cuando abren', 'a que hora'])) {
     customerStates[phone] = 'main_menu';
     return [
@@ -124,6 +133,7 @@ async function handleMessage(phone, name, text) {
     ];
   }
 
+  // ── HABLAR CON ASESOR ─────────────────────────────────────────
   if (matchesOption(lower, ['hablar con asesor', '💬 hablar con asesor', 'asesor', '5', 'hablar', 'agente', 'persona'])) {
     customerStates[phone] = 'main_menu';
     return [
@@ -132,7 +142,7 @@ async function handleMessage(phone, name, text) {
     ];
   }
 
-  // ── AFTER MENU — wants to order? ─────────────────────────────
+  // ── AFTER MENU — ¿quiere ordenar? ────────────────────────────
   if (state === 'after_menu') {
     if (matchesOption(lower, ['sí', 'si', 'yes', 'quiero', 'ordenar', 'hacer pedido', '✅ sí, quiero ordenar'])) {
       customerStates[phone] = 'order_type';
@@ -146,7 +156,7 @@ async function handleMessage(phone, name, text) {
     }
   }
 
-  // ── ORDER TYPE ───────────────────────────────────────────────
+  // ── ORDER TYPE ────────────────────────────────────────────────
   if (state === 'order_type') {
     if (matchesOption(lower, ['delivery', '🛵 delivery', 'domicilio', 'a domicilio', 'envío', 'envio'])) {
       customerStates[phone] = 'main_menu';
@@ -163,19 +173,20 @@ async function handleMessage(phone, name, text) {
     }
   }
 
-  // ── COLLECTING EVENT INFO ────────────────────────────────────
+  // ── COLLECTING EVENT INFO ─────────────────────────────────────
   if (state === 'collecting_event') {
     customerStates[phone] = 'main_menu';
+    // Enviar info del evento al equipo de RER vía WhatsApp
     await sendMessage(EVENTS_PHONE, textMsg(
-      `🎉 *Nueva solicitud de evento*\n\nDe: ${name} (${phone})\n\nInfo proporcionada:\n${text}`
+      `🎉 *Nueva solicitud de evento*\n\nDe: ${name}\nTeléfono: ${phone}\n\nInformación del evento:\n${text}`
     ));
     return [
-      textMsg('¡Gracias por tu interés! 🎉🍔 Alguien del equipo de RER Burgers se estará comunicando contigo muy pronto para confirmar los detalles.'),
+      textMsg('¡Muchas gracias por tu interés! 🎉🍔 Alguien del equipo de *RER Burgers* se estará comunicando contigo muy pronto para confirmar todos los detalles.'),
       moreHelpButtons()
     ];
   }
 
-  // ── MORE HELP ────────────────────────────────────────────────
+  // ── MORE HELP ─────────────────────────────────────────────────
   if (matchesOption(lower, ['✅ sí, necesito ayuda', 'sí, necesito ayuda', 'si, necesito ayuda', 'sí', 'si', 'más ayuda', 'mas ayuda', 'yes'])) {
     customerStates[phone] = 'main_menu';
     return [
@@ -192,7 +203,7 @@ async function handleMessage(phone, name, text) {
     ];
   }
 
-  // ── FALLBACK — Claude AI ─────────────────────────────────────
+  // ── FALLBACK — Claude AI ──────────────────────────────────────
   conversations[phone].push({ role: 'user', content: text });
   const aiReply = await askClaude(conversations[phone]);
   conversations[phone].push({ role: 'assistant', content: aiReply });
@@ -207,8 +218,14 @@ function textMsg(body) {
   return { type: 'text', text: { body, preview_url: false } };
 }
 
-function imageMsg(url) {
-  return { type: 'image', image: { link: url } };
+function pdfMsg(url, filename) {
+  return {
+    type: 'document',
+    document: {
+      link: url,
+      filename: filename
+    }
+  };
 }
 
 function menuButtons() {
